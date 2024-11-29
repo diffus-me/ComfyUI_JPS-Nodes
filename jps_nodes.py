@@ -14,6 +14,7 @@ import torch
 import json
 import os
 import comfy.sd
+import execution_context
 import folder_paths
 from datetime import datetime
 from PIL import Image, ImageOps, ImageSequence
@@ -2578,8 +2579,8 @@ class IO_Lora_Loader:
         self.loaded_lora = None
 
     @classmethod
-    def INPUT_TYPES(s):
-        file_list = folder_paths.get_filename_list("loras")
+    def INPUT_TYPES(s, context: execution_context.ExecutionContext):
+        file_list = folder_paths.get_filename_list(context, "loras")
         file_list.insert(0, "None")
         return {"required": { "model": ("MODEL",),
                               "clip": ("CLIP", ),
@@ -2589,20 +2590,23 @@ class IO_Lora_Loader:
                               "lora_name": (file_list, ),
                               "strength_model": ("FLOAT", {"default": 1.0, "min": -10.0, "max": 10.0, "step": 0.1}),
                               "strength_clip": ("FLOAT", {"default": 1.0, "min": -10.0, "max": 10.0, "step": 0.1}),
-                              }}
+                              },
+                "hidden": {
+                    "context": "EXECUTION_CONTEXT"
+                }}
     RETURN_TYPES = ("MODEL", "CLIP")
     FUNCTION = "load_lora"
 
     CATEGORY = "JPS Nodes/IO"
 
-    def load_lora(self, model, clip, switch, lora_name, strength_model, strength_clip):
+    def load_lora(self, model, clip, switch, lora_name, strength_model, strength_clip, context: execution_context.ExecutionContext):
         if strength_model == 0 and strength_clip == 0:
             return (model, clip)
 
         if switch == "Off" or  lora_name == "None":
             return (model, clip)
 
-        lora_path = folder_paths.get_full_path("loras", lora_name)
+        lora_path = folder_paths.get_full_path(context, "loras", lora_name)
         lora = None
         if self.loaded_lora is not None:
             if self.loaded_lora[0] == lora_path:
@@ -3366,7 +3370,7 @@ class Prepare_Image_Plus:
 
 class Save_Images_Plus:
     def __init__(self):
-        self.output_dir = folder_paths.get_output_directory()
+        # self.output_dir = folder_paths.get_output_directory()
         self.type = "output"
         self.prefix_append = ""
         self.compress_level = 4
@@ -3376,7 +3380,7 @@ class Save_Images_Plus:
         return {"required": 
                     {"images": ("IMAGE", ),
                      "filename_prefix": ("STRING", {"default": "ComfyUI"})},
-                "hidden": {"prompt": "PROMPT", "extra_pnginfo": "EXTRA_PNGINFO"},
+                "hidden": {"prompt": "PROMPT", "extra_pnginfo": "EXTRA_PNGINFO", "context": "EXECUTION_CONTEXT" }
                 }
 
     RETURN_TYPES = ("INT",)
@@ -3387,9 +3391,10 @@ class Save_Images_Plus:
 
     CATEGORY = "JPS Nodes/IO"
 
-    def save_images_plus(self, images, filename_prefix="ComfyUI", prompt=None, extra_pnginfo=None):
+    def save_images_plus(self, images, filename_prefix="ComfyUI", prompt=None, extra_pnginfo=None, context: execution_context.ExecutionContext=None):
+        output_dir = folder_paths.get_output_directory(context.user_id)
         filename_prefix += self.prefix_append
-        full_output_folder, filename, counter, subfolder, filename_prefix = folder_paths.get_save_image_path(filename_prefix, self.output_dir, images[0].shape[1], images[0].shape[0])
+        full_output_folder, filename, counter, subfolder, filename_prefix = folder_paths.get_save_image_path(filename_prefix, output_dir, images[0].shape[1], images[0].shape[0])
         results = list()
         for image in images:
             i = 255. * image.cpu().numpy()
